@@ -11,7 +11,8 @@ pub mod util {
         use serde::de::Visitor;
         use bitcoin::hashes::core::fmt::Formatter;
         use std::str::FromStr;
-        use std::error;
+        use std::{error, io};
+        use bitcoin::PubkeyHash;
 
         #[derive(Debug)]
         pub enum Error {
@@ -166,7 +167,25 @@ pub mod util {
         }
 
         impl PublicKey {
+            pub fn pubkey_hash(&self) -> PubkeyHash {
+                unimplemented!()
+            }
 
+            pub fn write_into<W: io::Write>(&self, mut writer: W) {
+                unimplemented!()
+            }
+
+            pub fn to_bytes(&self) -> Vec<u8> {
+                unimplemented!()
+            }
+
+            pub fn from_slice(data: &[u8]) -> Result<PublicKey, Error> {
+                unimplemented!()
+            }
+
+            pub fn from_private_key<C: secp256k1::Signing>(secp: &Secp256k1<C>, sk: &PrivateKey) -> PublicKey {
+                sk.public_key(secp)
+            }
         }
     }
 }
