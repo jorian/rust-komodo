@@ -51,6 +51,7 @@ pub mod util {
             }
         }
 
+        #[derive(Copy, Clone, PartialEq, Eq)]
         pub struct PrivateKey {
             pub compressed: bool,
             pub key: secp256k1::SecretKey
@@ -58,7 +59,10 @@ pub mod util {
 
         impl PrivateKey {
             pub fn public_key<C: secp256k1::Signing>(&self, secp: &Secp256k1<C>) -> PublicKey {
-                unimplemented!()
+                PublicKey {
+                    compressed: self.compressed,
+                    key: secp256k1::PublicKey::from_secret_key(secp, &self.key)
+                }
             }
 
             pub fn fmt_wif(&self, fmt: &mut dyn fmt::Write) -> fmt::Result {
@@ -87,6 +91,14 @@ pub mod util {
                     compressed,
                     key: secp256k1::SecretKey::from_slice(&data[1..33])?
                 })
+            }
+
+            pub fn to_wif(&self) -> String {
+                let mut buf = String::new();
+                buf.write_fmt(format_args!("{}", self)).unwrap();
+                buf.shrink_to_fit();
+
+                buf
             }
         }
 
@@ -144,19 +156,17 @@ pub mod util {
                 }
 
                 deserializer.deserialize_str(WifVisitor)
+            }
         }
 
-        }
-
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct PublicKey {
             pub compressed: bool,
             pub key: secp256k1::PublicKey
         }
 
         impl PublicKey {
-            pub fn to_wif(&self) -> String {
-                unimplemented!()
-            }
+
         }
     }
 }
