@@ -74,13 +74,13 @@ pub mod util {
                 fmt.write_str(&privkey)
             }
 
-            pub fn from_wif(wif: &str) -> Result<PrivateKey, Error> {
+            pub fn from_wif(wif: &str) -> Result<PrivateKey, bitcoin::util::key::Error> {
                 let data = base58::from(wif)?;
 
                 let compressed = match data.len() {
                     33 => false,
                     34 => true,
-                    _ => { return Err(Error::Base58(base58::Error::InvalidLength(data.len())))}
+                    _ => { return Err(bitcoin::util::key::Error::Base58(base58::Error::InvalidLength(data.len())))}
                 };
 
                 Ok(PrivateKey {
@@ -130,18 +130,20 @@ pub mod util {
 
                     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where
                         E: ::serde::de::Error, {
-                        if let Ok(s) = ::std::str::from_utf8(v) {
-
-                        }
+                        PrivateKey::from_str(v).map_err(E::custom)
                     }
 
                     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E> where
                         E: ::serde::de::Error, {
                         if let Ok(s) = ::std::str::from_utf8(v) {
                             PrivateKey::from_str(s).map_err(E::custom)
+                        } else {
+                            Err(E::invalid_value(::serde::de::Unexpected::Bytes(v), &self))
                         }
                     }
                 }
+
+                deserializer.deserialize_str(WifVisitor)
         }
 
         }
