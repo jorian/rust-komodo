@@ -11,6 +11,45 @@ pub mod util {
         use serde::de::Visitor;
         use bitcoin::hashes::core::fmt::Formatter;
         use std::str::FromStr;
+        use std::error;
+
+        #[derive(Debug)]
+        pub enum Error {
+            Base58(base58::Error),
+            Secp256k1(secp256k1::Error)
+        }
+
+        impl fmt::Display for Error {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                match *self {
+                    Error::Base58(ref e) => write!(f, "base58 error: {}", e),
+                    Error::Secp256k1(ref e) => write!(f, "secp256k1 error: {}", e),
+                }
+            }
+        }
+
+        impl error::Error for Error {
+            fn cause(&self) -> Option<&dyn error::Error> {
+                match *self {
+                    Error::Base58(ref e) => Some(e),
+                    Error::Secp256k1(ref e) => Some(e),
+                }
+            }
+        }
+
+        #[doc(hidden)]
+        impl From<base58::Error> for Error {
+            fn from(e: base58::Error) -> Error {
+                Error::Base58(e)
+            }
+        }
+
+        #[doc(hidden)]
+        impl From<secp256k1::Error> for Error {
+            fn from(e: secp256k1::Error) -> Error {
+                Error::Secp256k1(e)
+            }
+        }
 
         pub struct PrivateKey {
             pub compressed: bool,
@@ -24,7 +63,7 @@ pub mod util {
 
             pub fn fmt_wif(&self, fmt: &mut dyn fmt::Write) -> fmt::Result {
                 let mut ret = [0; 34];
-                ret[0] = 160;
+                ret[0] = 188;
                 ret[1..33].copy_from_slice(&self.key[..]);
                 let privkey = if self.compressed {
                     ret[33] = 1;
@@ -35,12 +74,19 @@ pub mod util {
                 fmt.write_str(&privkey)
             }
 
-            pub fn from_wif() {
-                // deserialize from base58
-                // check data.len()
-                // if 33, uncompressed,
-                // if 34, compressed
-                unimplemented!()
+            pub fn from_wif(wif: &str) -> Result<PrivateKey, Error> {
+                let data = base58::from(wif)?;
+
+                let compressed = match data.len() {
+                    33 => false,
+                    34 => true,
+                    _ => { return Err(Error::Base58(base58::Error::InvalidLength(data.len())))}
+                };
+
+                Ok(PrivateKey {
+                    compressed,
+                    key: secp256k1::SecretKey::from_slice(&data[1..33])?
+                })
             }
         }
 
