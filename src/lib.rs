@@ -119,7 +119,16 @@ pub mod util {
         impl FromStr for PrivateKey {
             type Err = bitcoin::util::key::Error;
             fn from_str(s: &str) -> Result<PrivateKey, bitcoin::util::key::Error> {
-                PrivateKey::from_wif(s)
+                dbg!(&s);
+
+                // figure out if it is a wif
+                // PrivateKey::from_wif(s)
+                // otherwise it's a raw ECDSA key already
+                // issue: we can't derive whether it came from compressed keys
+                Ok(PrivateKey {
+                    compressed: false,
+                    key: secp256k1::SecretKey::from_str(s)?
+                })
             }
         }
 
@@ -144,6 +153,7 @@ pub mod util {
 
                     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where
                         E: ::serde::de::Error, {
+                        dbg!(&v);
                         PrivateKey::from_str(v).map_err(E::custom)
                     }
 
