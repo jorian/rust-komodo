@@ -7,12 +7,13 @@ pub mod util {
         use std::fmt::{self, Write};
         use secp256k1::{self, Secp256k1};
         use bitcoin::util::base58;
-        use serde::Deserializer;
+        use serde::{Deserializer, Serializer};
         use serde::de::Visitor;
         use bitcoin::hashes::core::fmt::Formatter;
         use std::str::FromStr;
         use std::{error, io};
         use bitcoin::PubkeyHash;
+        use bitcoin::hashes::Hash;
 
         #[derive(Debug)]
         pub enum Error {
@@ -168,23 +169,141 @@ pub mod util {
 
         impl PublicKey {
             pub fn pubkey_hash(&self) -> PubkeyHash {
-                unimplemented!()
+
+                if self.compressed {
+                    PubkeyHash::hash(&self.key.serialize())
+                } else {
+                    PubkeyHash::hash(&self.key.serialize_uncompressed())
+                }
             }
 
             pub fn write_into<W: io::Write>(&self, mut writer: W) {
-                unimplemented!()
+                let _: io::Result<()> = if self.compressed {
+                    writer.write_all(&self.key.serialize())
+                } else {
+                    writer.write_all(&self.key.serialize_uncompressed())
+                };
             }
 
             pub fn to_bytes(&self) -> Vec<u8> {
-                unimplemented!()
+                let mut buf = Vec::new();
+                self.write_into(&mut buf);
+
+                buf
             }
 
             pub fn from_slice(data: &[u8]) -> Result<PublicKey, Error> {
-                unimplemented!()
+                let compressed: bool = match data.len() {
+                    33 => true,
+                    65 => false,
+                    len => { return Err(bitcoin::util::base58::Error::InvalidLength(len).into()); }
+                };
+
+                Ok(PublicKey {
+                    compressed,
+                    key: secp256k1::PublicKey::from_slice(data)?
+                })
             }
 
             pub fn from_private_key<C: secp256k1::Signing>(secp: &Secp256k1<C>, sk: &PrivateKey) -> PublicKey {
                 sk.public_key(secp)
+            }
+        }
+
+        impl fmt::Display for PublicKey {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                if self.compressed {
+                    for ch in &self.key.serialize()[..] {
+                        write!(f, "{:02x}", ch)?;
+                    }
+                } else {
+                    for ch in &self.key.serialize_uncompressed()[..] {
+                        write!(f, "{:02x}", ch)?;
+                    }
+                }
+                Ok(())
+            }
+        }
+
+        impl FromStr for PublicKey {
+            type Err = Error;
+            fn from_str(s: &str) -> Result<PublicKey, Error> {
+                let key = secp256k1::PublicKey::from_str(s)?;
+                Ok(PublicKey {
+                    key: key,
+                    compressed: s.len() == 66
+                })
+            }
+        }
+
+        impl ::serde::Serialize for PublicKey {
+            fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
+                S: Serializer {
+                if serializer.is_human_readable() {
+                    serializer.collect_str(self)
+                } else {
+                    if self.compressed {
+                        serializer.serialize_bytes(&self.key.serialize()[..])
+                    } else {
+                        serializer.serialize_bytes(&self.key.serialize_uncompressed()[..])
+                    }
+                }
+            }
+        }
+
+        impl<'de> ::serde::Deserialize<'de> for PublicKey {
+            fn deserialize<D>(d: D) -> Result<Self, <D as Deserializer<'de>>::Error> where
+                D: Deserializer<'de> {
+                if d.is_human_readable() {
+                    struct HexVisitor;
+
+                    impl<'de> ::serde::de::Visitor<'de> for HexVisitor {
+                        type Value = PublicKey;
+
+                        fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                            formatter.write_str("an ASCII hex string")
+                        }
+
+                        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                        where
+                            E: ::serde::de::Error,
+                        {
+                            PublicKey::from_str(v).map_err(E::custom)
+                        }
+
+                        fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+                        where
+                            E: ::serde::de::Error,
+                        {
+                            if let Ok(hex) = ::std::str::from_utf8(v) {
+                                PublicKey::from_str(hex).map_err(E::custom)
+                            } else {
+                                Err(E::invalid_value(::serde::de::Unexpected::Bytes(v), &self))
+                            }
+                        }
+                    }
+                    d.deserialize_str(HexVisitor)
+                } else {
+                    struct BytesVisitor;
+
+                    impl<'de> ::serde::de::Visitor<'de> for BytesVisitor {
+                        type Value = PublicKey;
+
+                        fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                            formatter.write_str("a bytestring")
+                        }
+
+                        fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+                            where
+                                E: ::serde::de::Error,
+                        {
+                            PublicKey::from_slice(v).map_err(E::custom)
+                        }
+                    }
+
+                    d.deserialize_bytes(BytesVisitor)
+                }
+
             }
         }
     }
