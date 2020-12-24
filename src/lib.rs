@@ -81,7 +81,7 @@ pub mod util {
             }
 
             pub fn from_wif(wif: &str) -> Result<PrivateKey, bitcoin::util::key::Error> {
-                let data = base58::from(wif)?;
+                let data = base58::from_check(wif)?;
 
                 let compressed = match data.len() {
                     33 => false,
@@ -119,16 +119,14 @@ pub mod util {
         impl FromStr for PrivateKey {
             type Err = bitcoin::util::key::Error;
             fn from_str(s: &str) -> Result<PrivateKey, bitcoin::util::key::Error> {
-                dbg!(&s);
-
-                // figure out if it is a wif
-                // PrivateKey::from_wif(s)
-                // otherwise it's a raw ECDSA key already
-                // issue: we can't derive whether it came from compressed keys
-                Ok(PrivateKey {
-                    compressed: false,
-                    key: secp256k1::SecretKey::from_str(s)?
-                })
+                match s.len() {
+                    52 => PrivateKey::from_wif(s),
+                    64 => Ok(PrivateKey {
+                        compressed: false,
+                        key: secp256k1::SecretKey::from_str(s)?
+                    }),
+                    _ => Err(bitcoin::util::key::Error::Base58(base58::Error::Other(String::from("invalid length trying to convert from str"))))
+                }
             }
         }
 
