@@ -4,21 +4,21 @@ extern crate serde;
 
 pub mod util {
     pub mod address {
-        use bitcoin::{PubkeyHash, ScriptHash};
+        use bitcoin::{PubkeyHash, ScriptHash, Script};
         use bitcoin::util::base58;
         use std::fmt::{self, Display, Formatter};
         use std::error;
-        use serde::{Deserializer, Serialize, Deserialize, Serializer};
+        use serde::{Deserializer, Serialize, Deserialize};
         use std::str::FromStr;
         use bitcoin::hashes::Hash;
         use bitcoin::util::base58::from;
-        use serde::de::Error;
+        use crate::PublicKey;
 
         /// Address error.
         #[derive(Debug, PartialEq)]
         pub enum Error {
             Base58(base58::Error),
-            UncompressedPubkey
+            UncompressedPubkey,
         }
 
         impl fmt::Display for Error {
@@ -52,23 +52,100 @@ pub mod util {
             // - whether address is valid
             // - compressed / uncompressed
             // - P2SH / P2PKH
-            pub payload: Payload
+            pub payload: Payload,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum Payload {
             PubkeyHash(PubkeyHash),
-            ScriptHash(ScriptHash)
+            ScriptHash(ScriptHash),
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum AddressType {
             P2pkh,
             P2sh,
-            Shielded
+            Shielded,
         }
 
+        macro_rules! serde_string_impl {
+            ($name:ident, $expecting:expr) => {
+                impl<'de> $crate::serde::Deserialize<'de> for $name {
+                    fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
+                    where
+                        D: $crate::serde::de::Deserializer<'de>,
+                    {
+                        use ::std::fmt::{self, Formatter};
+                        use ::std::str::FromStr;
+
+                        struct Visitor;
+                        impl<'de> $crate::serde::de::Visitor<'de> for Visitor {
+                            type Value = $name;
+
+                            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                                formatter.write_str($expecting)
+                            }
+
+                            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                            where
+                                E: $crate::serde::de::Error,
+                            {
+                                $name::from_str(v).map_err(E::custom)
+                            }
+
+                            fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+                            where
+                                E: $crate::serde::de::Error,
+                            {
+                                self.visit_str(v)
+                            }
+
+                            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+                            where
+                                E: $crate::serde::de::Error,
+                            {
+                                self.visit_str(&v)
+                            }
+                        }
+
+                        deserializer.deserialize_str(Visitor)
+                    }
+                }
+
+                impl<'de> $crate::serde::Serialize for $name {
+                    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                    where
+                        S: $crate::serde::Serializer,
+                    {
+                        serializer.collect_str(&self)
+                    }
+                }
+            };
+        }
+
+        serde_string_impl!(Address, "a Komodo address");
+
         impl Address {
+            pub fn p2pkh(pk: &crate::PublicKey) -> Address {
+                unimplemented!()
+            }
+
+            pub fn p2sh(script: &Script) -> Address {
+                unimplemented!()
+            }
+
+            pub fn address_type(&self) -> Option<AddressType> {
+                match self.payload {
+                    Payload::PubkeyHash(_) => Some(AddressType::P2pkh),
+                    Payload::ScriptHash(_) => Some(AddressType::P2sh)
+                }
+            }
+
+            pub fn script_pubkey(&self) -> Script {
+                // self.payload.script_pubkey()
+                unimplemented!()
+            }
+
             // /// for use in `z_shieldcoinbase` to merge all coinbases to a Shielded address
             // pub fn any() -> Address {
             //     Address {
@@ -99,7 +176,7 @@ pub mod util {
 
                 Ok(Address {
                     addr_type,
-                    payload
+                    payload,
                 })
             }
         }
@@ -114,12 +191,12 @@ pub mod util {
         //     }
         // }
 
-        impl ::serde::Serialize for Address {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where
-                S: ::serde::Serializer {
-                serializer.collect_str(&self.payload)
-            }
-        }
+        // impl ::serde::Serialize for Address {
+        //     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where
+        //         S: ::serde::Serializer {
+        //         serializer.collect_str(&self.payload)
+        //     }
+        // }
 
         // impl Serialize for Address {
         //     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where
@@ -170,7 +247,7 @@ pub mod util {
         #[derive(Debug)]
         pub enum Error {
             Base58(base58::Error),
-            Secp256k1(secp256k1::Error)
+            Secp256k1(secp256k1::Error),
         }
 
         impl fmt::Display for Error {
@@ -208,14 +285,14 @@ pub mod util {
         #[derive(Copy, Clone, PartialEq, Eq)]
         pub struct PrivateKey {
             pub compressed: bool,
-            pub key: secp256k1::SecretKey
+            pub key: secp256k1::SecretKey,
         }
 
         impl PrivateKey {
             pub fn public_key<C: secp256k1::Signing>(&self, secp: &Secp256k1<C>) -> PublicKey {
                 PublicKey {
                     compressed: self.compressed,
-                    key: secp256k1::PublicKey::from_secret_key(secp, &self.key)
+                    key: secp256k1::PublicKey::from_secret_key(secp, &self.key),
                 }
             }
 
@@ -238,12 +315,12 @@ pub mod util {
                 let compressed = match data.len() {
                     33 => false,
                     34 => true,
-                    _ => { return Err(bitcoin::util::key::Error::Base58(base58::Error::InvalidLength(data.len())))}
+                    _ => { return Err(bitcoin::util::key::Error::Base58(base58::Error::InvalidLength(data.len()))); }
                 };
 
                 Ok(PrivateKey {
                     compressed,
-                    key: secp256k1::SecretKey::from_slice(&data[1..33])?
+                    key: secp256k1::SecretKey::from_slice(&data[1..33])?,
                 })
             }
 
@@ -275,7 +352,7 @@ pub mod util {
                     52 => PrivateKey::from_wif(s),
                     64 => Ok(PrivateKey {
                         compressed: false,
-                        key: secp256k1::SecretKey::from_str(s)?
+                        key: secp256k1::SecretKey::from_str(s)?,
                     }),
                     _ => Err(bitcoin::util::key::Error::Base58(base58::Error::Other(String::from("invalid length trying to convert from str"))))
                 }
@@ -324,7 +401,7 @@ pub mod util {
         #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct PublicKey {
             pub compressed: bool,
-            pub key: secp256k1::PublicKey
+            pub key: secp256k1::PublicKey,
         }
 
         impl PublicKey {
@@ -360,7 +437,7 @@ pub mod util {
 
                 Ok(PublicKey {
                     compressed,
-                    key: secp256k1::PublicKey::from_slice(data)?
+                    key: secp256k1::PublicKey::from_slice(data)?,
                 })
             }
 
@@ -390,7 +467,7 @@ pub mod util {
                 let key = secp256k1::PublicKey::from_str(s)?;
                 Ok(PublicKey {
                     key: key,
-                    compressed: s.len() == 66
+                    compressed: s.len() == 66,
                 })
             }
         }
@@ -424,15 +501,15 @@ pub mod util {
                         }
 
                         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                        where
-                            E: ::serde::de::Error,
+                            where
+                                E: ::serde::de::Error,
                         {
                             PublicKey::from_str(v).map_err(E::custom)
                         }
 
                         fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-                        where
-                            E: ::serde::de::Error,
+                            where
+                                E: ::serde::de::Error,
                         {
                             if let Ok(hex) = ::std::str::from_utf8(v) {
                                 PublicKey::from_str(hex).map_err(E::custom)
@@ -462,7 +539,6 @@ pub mod util {
 
                     d.deserialize_bytes(BytesVisitor)
                 }
-
             }
         }
     }
