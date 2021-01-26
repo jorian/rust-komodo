@@ -1,8 +1,10 @@
 extern crate serde;
-// extern crate serde_json;
-// extern crate serde_test;
 
 pub mod util {
+    pub mod amount {
+
+    }
+
     pub mod address {
         use bitcoin::{PubkeyHash, ScriptHash, Script};
         use bitcoin::util::base58;
