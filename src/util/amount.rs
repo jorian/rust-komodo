@@ -24,30 +24,27 @@ use std::cmp::Ordering;
 /// A set of denominations in which amounts can be expressed.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Denomination {
-    /// BTC
-    Bitcoin,
-    /// mBTC
-    MilliBitcoin,
-    /// uBTC
-    MicroBitcoin,
+    /// KMD
+    Komodo,
+    /// mKMD
+    MilliKomodo,
+    /// mKMD
+    MicroKomodo,
     /// bits
     Bit,
     /// satoshi
-    Satoshi,
-    /// msat
-    MilliSatoshi,
+    Satoshi
 }
 
 impl Denomination {
     /// The number of decimal places more than a satoshi.
     fn precision(self) -> i32 {
         match self {
-            Denomination::Bitcoin => -8,
-            Denomination::MilliBitcoin => -5,
-            Denomination::MicroBitcoin => -2,
+            Denomination::Komodo => -8,
+            Denomination::MilliKomodo => -5,
+            Denomination::MicroKomodo => -2,
             Denomination::Bit => -2,
-            Denomination::Satoshi => 0,
-            Denomination::MilliSatoshi => 3,
+            Denomination::Satoshi => 0
         }
     }
 }
@@ -55,12 +52,11 @@ impl Denomination {
 impl fmt::Display for Denomination {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(match *self {
-            Denomination::Bitcoin => "BTC",
-            Denomination::MilliBitcoin => "mBTC",
-            Denomination::MicroBitcoin => "uBTC",
+            Denomination::Komodo => "KMD",
+            Denomination::MilliKomodo => "mKMD",
+            Denomination::MicroKomodo => "uKMD",
             Denomination::Bit => "bits",
-            Denomination::Satoshi => "satoshi",
-            Denomination::MilliSatoshi => "msat",
+            Denomination::Satoshi => "satoshi"
         })
     }
 }
@@ -70,13 +66,11 @@ impl FromStr for Denomination {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "BTC" => Ok(Denomination::Bitcoin),
-            "mBTC" => Ok(Denomination::MilliBitcoin),
-            "uBTC" => Ok(Denomination::MicroBitcoin),
+            "KMD" => Ok(Denomination::Komodo),
+            "mKMD" => Ok(Denomination::MilliKomodo),
+            "uKMD" => Ok(Denomination::MicroKomodo),
             "bits" => Ok(Denomination::Bit),
             "satoshi" => Ok(Denomination::Satoshi),
-            "sat" => Ok(Denomination::Satoshi),
-            "msat" => Ok(Denomination::MilliSatoshi),
             d => Err(ParseAmountError::UnknownDenomination(d.to_owned())),
         }
     }
@@ -245,7 +239,7 @@ fn fmt_satoshi_in(
 
 /// Amount
 ///
-/// The [Amount] type can be used to express Bitcoin amounts that supports
+/// The [Amount] type can be used to express Komodo amounts that supports
 /// arithmetic and conversion to various denominations.
 ///
 ///
@@ -268,8 +262,8 @@ impl Amount {
     pub const ZERO: Amount = Amount(0);
     /// Exactly one satoshi.
     pub const ONE_SAT: Amount = Amount(1);
-    /// Exactly one bitcoin.
-    pub const ONE_BTC: Amount = Amount(100_000_000);
+    /// Exactly one komodo.
+    pub const ONE_KMD: Amount = Amount(100_000_000);
 
     /// Create an [Amount] with satoshi precision and the given number of satoshis.
     pub fn from_sat(satoshi: u64) -> Amount {
@@ -291,9 +285,9 @@ impl Amount {
         Amount(u64::min_value())
     }
 
-    /// Convert from a value expressing bitcoins to an [Amount].
-    pub fn from_btc(btc: f64) -> Result<Amount, ParseAmountError> {
-        Amount::from_float_in(btc, Denomination::Bitcoin)
+    /// Convert from a value expressing komodo to an [Amount].
+    pub fn from_kmd(kmd: f64) -> Result<Amount, ParseAmountError> {
+        Amount::from_float_in(kmd, Denomination::Komodo)
     }
 
     /// Parse a decimal string as a value in the given denomination.
@@ -333,13 +327,13 @@ impl Amount {
         f64::from_str(&self.to_string_in(denom)).unwrap()
     }
 
-    /// Express this [Amount] as a floating-point value in Bitcoin.
+    /// Express this [Amount] as a floating-point value in Komodo.
     ///
-    /// Equivalent to `to_float_in(Denomination::Bitcoin)`.
+    /// Equivalent to `to_float_in(Denomination::Komodo)`.
     ///
     /// Please be aware of the risk of using floating-point numbers.
-    pub fn as_btc(self) -> f64 {
-        self.to_float_in(Denomination::Bitcoin)
+    pub fn as_kmd(self) -> f64 {
+        self.to_float_in(Denomination::Komodo)
     }
 
     /// Convert this [Amount] in floating-point notation with a given
@@ -438,11 +432,11 @@ impl fmt::Debug for Amount {
 }
 
 // No one should depend on a binding contract for Display for this type.
-// Just using Bitcoin denominated string.
+// Just using Komodo denominated string.
 impl fmt::Display for Amount {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt_value_in(f, Denomination::Bitcoin)?;
-        write!(f, " {}", Denomination::Bitcoin)
+        self.fmt_value_in(f, Denomination::Komodo)?;
+        write!(f, " {}", Denomination::Komodo)
     }
 }
 
@@ -526,7 +520,7 @@ impl FromStr for Amount {
 
 /// SignedAmount
 ///
-/// The [SignedAmount] type can be used to express Bitcoin amounts that supports
+/// The [SignedAmount] type can be used to express Komodo amounts that supports
 /// arithmetic and conversion to various denominations.
 ///
 ///
@@ -546,8 +540,8 @@ impl SignedAmount {
     pub const ZERO: SignedAmount = SignedAmount(0);
     /// Exactly one satoshi.
     pub const ONE_SAT: SignedAmount = SignedAmount(1);
-    /// Exactly one bitcoin.
-    pub const ONE_BTC: SignedAmount = SignedAmount(100_000_000);
+    /// Exactly one Komodo.
+    pub const ONE_KMD: SignedAmount = SignedAmount(100_000_000);
 
     /// Create an [SignedAmount] with satoshi precision and the given number of satoshis.
     pub fn from_sat(satoshi: i64) -> SignedAmount {
@@ -569,9 +563,9 @@ impl SignedAmount {
         SignedAmount(i64::min_value())
     }
 
-    /// Convert from a value expressing bitcoins to an [SignedAmount].
-    pub fn from_btc(btc: f64) -> Result<SignedAmount, ParseAmountError> {
-        SignedAmount::from_float_in(btc, Denomination::Bitcoin)
+    /// Convert from a value expressing Komodo to an [SignedAmount].
+    pub fn from_kmd(kmd: f64) -> Result<SignedAmount, ParseAmountError> {
+        SignedAmount::from_float_in(kmd, Denomination::Komodo)
     }
 
     /// Parse a decimal string as a value in the given denomination.
@@ -611,13 +605,13 @@ impl SignedAmount {
         f64::from_str(&self.to_string_in(denom)).unwrap()
     }
 
-    /// Express this [SignedAmount] as a floating-point value in Bitcoin.
+    /// Express this [SignedAmount] as a floating-point value in Komodo.
     ///
-    /// Equivalent to `to_float_in(Denomination::Bitcoin)`.
+    /// Equivalent to `to_float_in(Denomination::Komodo)`.
     ///
     /// Please be aware of the risk of using floating-point numbers.
-    pub fn as_btc(self) -> f64 {
-        self.to_float_in(Denomination::Bitcoin)
+    pub fn as_kmd(self) -> f64 {
+        self.to_float_in(Denomination::Komodo)
     }
 
     /// Convert this [SignedAmount] in floating-point notation with a given
@@ -763,11 +757,11 @@ impl fmt::Debug for SignedAmount {
 }
 
 // No one should depend on a binding contract for Display for this type.
-// Just using Bitcoin denominated string.
+// Just using Komodo denominated string.
 impl fmt::Display for SignedAmount {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt_value_in(f, Denomination::Bitcoin)?;
-        write!(f, " {}", Denomination::Bitcoin)
+        self.fmt_value_in(f, Denomination::Komodo)?;
+        write!(f, " {}", Denomination::Komodo)
     }
 }
 
@@ -861,11 +855,11 @@ pub mod serde {
     //!
     //! ```rust,ignore
     //! use serde::{Serialize, Deserialize};
-    //! use bitcoin::Amount;
+    //! use komodo::Amount;
     //!
     //! #[derive(Serialize, Deserialize)]
     //! pub struct HasAmount {
-    //!     #[serde(with = "bitcoin::util::amount::serde::as_btc")]
+    //!     #[serde(with = "komodo::util::amount::serde::as_kmd")]
     //!     pub amount: Amount,
     //! }
     //! ```
@@ -878,8 +872,8 @@ pub mod serde {
     pub trait SerdeAmount: Copy + Sized {
         fn ser_sat<S: Serializer>(self, s: S) -> Result<S::Ok, S::Error>;
         fn des_sat<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error>;
-        fn ser_btc<S: Serializer>(self, s: S) -> Result<S::Ok, S::Error>;
-        fn des_btc<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error>;
+        fn ser_kmd<S: Serializer>(self, s: S) -> Result<S::Ok, S::Error>;
+        fn des_kmd<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error>;
     }
 
     impl SerdeAmount for Amount {
@@ -889,12 +883,12 @@ pub mod serde {
         fn des_sat<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error> {
             Ok(Amount::from_sat(u64::deserialize(d)?))
         }
-        fn ser_btc<S: Serializer>(self, s: S) -> Result<S::Ok, S::Error> {
-            f64::serialize(&self.to_float_in(Denomination::Bitcoin), s)
+        fn ser_kmd<S: Serializer>(self, s: S) -> Result<S::Ok, S::Error> {
+            f64::serialize(&self.to_float_in(Denomination::Komodo), s)
         }
-        fn des_btc<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error> {
+        fn des_kmd<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
-            Ok(Amount::from_btc(f64::deserialize(d)?).map_err(D::Error::custom)?)
+            Ok(Amount::from_kmd(f64::deserialize(d)?).map_err(D::Error::custom)?)
         }
     }
 
@@ -905,12 +899,12 @@ pub mod serde {
         fn des_sat<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error> {
             Ok(SignedAmount::from_sat(i64::deserialize(d)?))
         }
-        fn ser_btc<S: Serializer>(self, s: S) -> Result<S::Ok, S::Error> {
-            f64::serialize(&self.to_float_in(Denomination::Bitcoin), s)
+        fn ser_kmd<S: Serializer>(self, s: S) -> Result<S::Ok, S::Error> {
+            f64::serialize(&self.to_float_in(Denomination::Komodo), s)
         }
-        fn des_btc<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error> {
+        fn des_kmd<'d, D: Deserializer<'d>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
-            Ok(SignedAmount::from_btc(f64::deserialize(d)?).map_err(D::Error::custom)?)
+            Ok(SignedAmount::from_kmd(f64::deserialize(d)?).map_err(D::Error::custom)?)
         }
     }
 
@@ -954,24 +948,24 @@ pub mod serde {
         }
     }
 
-    pub mod as_btc {
-        //! Serialize and deserialize [Amount] as JSON numbers denominated in BTC.
-        //! Use with `#[serde(with = "amount::serde::as_btc")]`.
+    pub mod as_kmd {
+        //! Serialize and deserialize [Amount] as JSON numbers denominated in kmd.
+        //! Use with `#[serde(with = "amount::serde::as_kmd")]`.
 
         use serde::{Deserializer, Serializer};
         use util::amount::serde::SerdeAmount;
 
         pub fn serialize<A: SerdeAmount, S: Serializer>(a: &A, s: S) -> Result<S::Ok, S::Error> {
-            a.ser_btc(s)
+            a.ser_kmd(s)
         }
 
         pub fn deserialize<'d, A: SerdeAmount, D: Deserializer<'d>>(d: D) -> Result<A, D::Error> {
-            A::des_btc(d)
+            A::des_kmd(d)
         }
 
         pub mod opt {
-            //! Serialize and deserialize [Option<Amount>] as JSON numbers denominated in BTC.
-            //! Use with `#[serde(default, with = "amount::serde::as_btc::opt")]`.
+            //! Serialize and deserialize [Option<Amount>] as JSON numbers denominated in kmd.
+            //! Use with `#[serde(default, with = "amount::serde::as_kmd::opt")]`.
 
             use serde::{Deserializer, Serializer};
             use util::amount::serde::SerdeAmount;
@@ -981,7 +975,7 @@ pub mod serde {
                 s: S,
             ) -> Result<S::Ok, S::Error> {
                 match *a {
-                    Some(a) => a.ser_btc(s),
+                    Some(a) => a.ser_kmd(s),
                     None => s.serialize_none(),
                 }
             }
@@ -989,7 +983,7 @@ pub mod serde {
             pub fn deserialize<'d, A: SerdeAmount, D: Deserializer<'d>>(
                 d: D,
             ) -> Result<Option<A>, D::Error> {
-                Ok(Some(A::des_btc(d)?))
+                Ok(Some(A::des_kmd(d)?))
             }
         }
     }
