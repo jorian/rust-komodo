@@ -8,12 +8,17 @@ keywords = ["crypto", "bitcoin"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+use-serde = ["serde", "bitcoin_hashes/serde"]
+
 [dependencies]
 secp256k1 = { version = "0.19.0", features = ["recovery"] }
 bitcoin = "0.25.2"
+bitcoin_hashes = "0.9.1"
 
 [dependencies.serde]
 version = "1"
+optional = true
 [dev-dependencies.ryu]
 version = "<1.0.5"
 
