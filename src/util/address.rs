@@ -1,12 +1,11 @@
-use bitcoin::{PubkeyHash, ScriptHash, Script};
-use bitcoin::util::base58;
-use std::fmt::{self, Display, Formatter};
-use std::error;
-use serde::{Deserializer, Serialize, Deserialize};
-use std::str::FromStr;
 use bitcoin::hashes::Hash;
-use bitcoin::util::base58::from;
-use crate::PublicKey;
+use bitcoin::util::base58;
+// use bitcoin::util::base58::from;
+use bitcoin::{PubkeyHash, Script, ScriptHash};
+// use serde::*;
+use std::error;
+use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
 
 /// Address error.
 #[derive(Debug, PartialEq)]
@@ -19,7 +18,9 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             Error::Base58(ref e) => write!(f, "base58: {}", e),
-            Error::UncompressedPubkey => write!(f, "an uncompressed pubkey was used where it is not allowed")
+            Error::UncompressedPubkey => {
+                write!(f, "an uncompressed pubkey was used where it is not allowed")
+            }
         }
     }
 }
@@ -63,75 +64,74 @@ pub enum AddressType {
 }
 
 macro_rules! serde_string_impl {
-            ($name:ident, $expecting:expr) => {
-                impl<'de> $crate::serde::Deserialize<'de> for $name {
-                    fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
+    ($name:ident, $expecting:expr) => {
+        impl<'de> ::serde::Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
+            where
+                D: ::serde::de::Deserializer<'de>,
+            {
+                use ::std::fmt::{self, Formatter};
+                use ::std::str::FromStr;
+
+                struct Visitor;
+                impl<'de> ::serde::de::Visitor<'de> for Visitor {
+                    type Value = $name;
+
+                    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                        formatter.write_str($expecting)
+                    }
+
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
                     where
-                        D: $crate::serde::de::Deserializer<'de>,
+                        E: ::serde::de::Error,
                     {
-                        use ::std::fmt::{self, Formatter};
-                        use ::std::str::FromStr;
+                        $name::from_str(v).map_err(E::custom)
+                    }
 
-                        struct Visitor;
-                        impl<'de> $crate::serde::de::Visitor<'de> for Visitor {
-                            type Value = $name;
+                    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+                    where
+                        E: ::serde::de::Error,
+                    {
+                        self.visit_str(v)
+                    }
 
-                            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                                formatter.write_str($expecting)
-                            }
-
-                            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                            where
-                                E: $crate::serde::de::Error,
-                            {
-                                $name::from_str(v).map_err(E::custom)
-                            }
-
-                            fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
-                            where
-                                E: $crate::serde::de::Error,
-                            {
-                                self.visit_str(v)
-                            }
-
-                            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-                            where
-                                E: $crate::serde::de::Error,
-                            {
-                                self.visit_str(&v)
-                            }
-                        }
-
-                        deserializer.deserialize_str(Visitor)
+                    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+                    where
+                        E: ::serde::de::Error,
+                    {
+                        self.visit_str(&v)
                     }
                 }
 
-                impl<'de> $crate::serde::Serialize for $name {
-                    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-                    where
-                        S: $crate::serde::Serializer,
-                    {
-                        serializer.collect_str(&self)
-                    }
-                }
-            };
+                deserializer.deserialize_str(Visitor)
+            }
         }
 
+        impl<'de> ::serde::Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: ::serde::Serializer,
+            {
+                serializer.collect_str(&self)
+            }
+        }
+    };
+}
 serde_string_impl!(Address, "a Komodo address");
 
 impl Address {
-    pub fn p2pkh(pk: &crate::PublicKey) -> Address {
+    pub fn p2pkh(_pk: secp256k1::PublicKey) -> Address {
         unimplemented!()
     }
 
-    pub fn p2sh(script: &Script) -> Address {
+    pub fn p2sh(_script: &Script) -> Address {
         unimplemented!()
     }
 
     pub fn address_type(&self) -> Option<AddressType> {
         match self.payload {
             Payload::PubkeyHash(_) => Some(AddressType::P2pkh),
-            Payload::ScriptHash(_) => Some(AddressType::P2sh)
+            Payload::ScriptHash(_) => Some(AddressType::P2sh),
         }
     }
 
@@ -154,7 +154,9 @@ impl FromStr for Address {
 
     fn from_str(s: &str) -> Result<Address, Error> {
         if s.len() > 50 {
-            return Err(Error::Base58(base58::Error::InvalidLength(s.len() * 11 / 15)));
+            return Err(Error::Base58(base58::Error::InvalidLength(
+                s.len() * 11 / 15,
+            )));
         }
 
         let data = base58::from_check(s)?;
@@ -163,15 +165,18 @@ impl FromStr for Address {
         }
 
         let (addr_type, payload) = match data[0] {
-            60 => (AddressType::P2pkh, Payload::PubkeyHash(PubkeyHash::from_slice(&data[1..]).unwrap())),
-            85 => (AddressType::P2sh, Payload::ScriptHash(ScriptHash::from_slice(&data[1..]).unwrap())),
-            x => return Err(Error::Base58(base58::Error::InvalidVersion(vec![x])))
+            60 => (
+                AddressType::P2pkh,
+                Payload::PubkeyHash(PubkeyHash::from_slice(&data[1..]).unwrap()),
+            ),
+            85 => (
+                AddressType::P2sh,
+                Payload::ScriptHash(ScriptHash::from_slice(&data[1..]).unwrap()),
+            ),
+            x => return Err(Error::Base58(base58::Error::InvalidVersion(vec![x]))),
         };
 
-        Ok(Address {
-            addr_type,
-            payload,
-        })
+        Ok(Address { addr_type, payload })
     }
 }
 

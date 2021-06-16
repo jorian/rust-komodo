@@ -1,13 +1,16 @@
-use std::fmt::{self, Write};
+// use bitcoin::util::base58;
 use secp256k1::{self, Secp256k1};
+use serde::*;
+use std::fmt::{self, Write};
+// use serde::de::Visitor;
+use bitcoin::hashes::Hash;
 use bitcoin::util::base58;
-use serde::{Deserializer, Serializer};
-use serde::de::Visitor;
-use bitcoin::hashes::core::fmt::Formatter;
+// use bitcoin::util::key::Error;
+use bitcoin::PubkeyHash;
+use std::fmt::Formatter;
+
 use std::str::FromStr;
 use std::{error, io};
-use bitcoin::PubkeyHash;
-use bitcoin::hashes::Hash;
 
 #[derive(Debug)]
 pub enum Error {
@@ -80,12 +83,16 @@ impl PrivateKey {
         let compressed = match data.len() {
             33 => false,
             34 => true,
-            _ => { return Err(bitcoin::util::key::Error::Base58(base58::Error::InvalidLength(data.len()))); }
+            _ => {
+                return Err(bitcoin::util::key::Error::Base58(
+                    base58::Error::InvalidLength(data.len()),
+                ));
+            }
         };
 
         Ok(PrivateKey {
             compressed,
-            key: secp256k1::SecretKey::from_slice(&data[1..33])?,
+            key: secp256k1::SecretKey::from_slice(&data[1..33]).unwrap(),
         })
     }
 
@@ -117,23 +124,29 @@ impl FromStr for PrivateKey {
             52 => PrivateKey::from_wif(s),
             64 => Ok(PrivateKey {
                 compressed: false,
-                key: secp256k1::SecretKey::from_str(s)?,
+                key: secp256k1::SecretKey::from_str(s).unwrap(),
             }),
-            _ => Err(bitcoin::util::key::Error::Base58(base58::Error::Other(String::from("invalid length trying to convert from str"))))
+            _ => Err(bitcoin::util::key::Error::Base58(base58::Error::Other(
+                String::from("invalid length trying to convert from str"),
+            ))),
         }
     }
 }
 
 impl ::serde::Serialize for PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where
-        S: ::serde::Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ::serde::Serializer,
+    {
         serializer.collect_str(self)
     }
 }
 
 impl<'de> ::serde::Deserialize<'de> for PrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error> where
-        D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+    {
         struct WifVisitor;
 
         impl<'de> ::serde::de::Visitor<'de> for WifVisitor {
@@ -143,14 +156,18 @@ impl<'de> ::serde::Deserialize<'de> for PrivateKey {
                 formatter.write_str("an ASCII WIF string")
             }
 
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where
-                E: ::serde::de::Error, {
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: ::serde::de::Error,
+            {
                 dbg!(&v);
                 PrivateKey::from_str(v).map_err(E::custom)
             }
 
-            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E> where
-                E: ::serde::de::Error, {
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: ::serde::de::Error,
+            {
                 if let Ok(s) = ::std::str::from_utf8(v) {
                     PrivateKey::from_str(s).map_err(E::custom)
                 } else {
@@ -197,7 +214,9 @@ impl PublicKey {
         let compressed: bool = match data.len() {
             33 => true,
             65 => false,
-            len => { return Err(bitcoin::util::base58::Error::InvalidLength(len).into()); }
+            len => {
+                return Err(bitcoin::util::base58::Error::InvalidLength(len).into());
+            }
         };
 
         Ok(PublicKey {
@@ -206,7 +225,10 @@ impl PublicKey {
         })
     }
 
-    pub fn from_private_key<C: secp256k1::Signing>(secp: &Secp256k1<C>, sk: &PrivateKey) -> PublicKey {
+    pub fn from_private_key<C: secp256k1::Signing>(
+        secp: &Secp256k1<C>,
+        sk: &PrivateKey,
+    ) -> PublicKey {
         sk.public_key(secp)
     }
 }
@@ -238,8 +260,10 @@ impl FromStr for PublicKey {
 }
 
 impl ::serde::Serialize for PublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
-        S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
         if serializer.is_human_readable() {
             serializer.collect_str(self)
         } else {
@@ -253,8 +277,10 @@ impl ::serde::Serialize for PublicKey {
 }
 
 impl<'de> ::serde::Deserialize<'de> for PublicKey {
-    fn deserialize<D>(d: D) -> Result<Self, <D as Deserializer<'de>>::Error> where
-        D: Deserializer<'de> {
+    fn deserialize<D>(d: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+    {
         if d.is_human_readable() {
             struct HexVisitor;
 
@@ -266,15 +292,15 @@ impl<'de> ::serde::Deserialize<'de> for PublicKey {
                 }
 
                 fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                    where
-                        E: ::serde::de::Error,
+                where
+                    E: ::serde::de::Error,
                 {
                     PublicKey::from_str(v).map_err(E::custom)
                 }
 
                 fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-                    where
-                        E: ::serde::de::Error,
+                where
+                    E: ::serde::de::Error,
                 {
                     if let Ok(hex) = ::std::str::from_utf8(v) {
                         PublicKey::from_str(hex).map_err(E::custom)
@@ -295,8 +321,8 @@ impl<'de> ::serde::Deserialize<'de> for PublicKey {
                 }
 
                 fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-                    where
-                        E: ::serde::de::Error,
+                where
+                    E: ::serde::de::Error,
                 {
                     PublicKey::from_slice(v).map_err(E::custom)
                 }
