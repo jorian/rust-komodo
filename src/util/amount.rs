@@ -14,12 +14,12 @@
 //! We refer to the documentation on the types for more information.
 //!
 
+use std::cmp::Ordering;
 use std::default;
 use std::error;
 use std::fmt::{self, Write};
 use std::ops;
 use std::str::FromStr;
-use std::cmp::Ordering;
 
 /// A set of denominations in which amounts can be expressed.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -33,7 +33,7 @@ pub enum Denomination {
     /// bits
     Bit,
     /// satoshi
-    Satoshi
+    Satoshi,
 }
 
 impl Denomination {
@@ -44,7 +44,7 @@ impl Denomination {
             Denomination::MilliKomodo => -5,
             Denomination::MicroKomodo => -2,
             Denomination::Bit => -2,
-            Denomination::Satoshi => 0
+            Denomination::Satoshi => 0,
         }
     }
 }
@@ -56,7 +56,7 @@ impl fmt::Display for Denomination {
             Denomination::MilliKomodo => "mKMD",
             Denomination::MicroKomodo => "uKMD",
             Denomination::Bit => "bits",
-            Denomination::Satoshi => "satoshi"
+            Denomination::Satoshi => "satoshi",
         })
     }
 }
@@ -104,7 +104,9 @@ impl fmt::Display for ParseAmountError {
             ParseAmountError::InvalidFormat => f.write_str("invalid number format"),
             ParseAmountError::InputTooLarge => f.write_str("input string was too large"),
             ParseAmountError::InvalidCharacter(c) => write!(f, "invalid character in input: {}", c),
-            ParseAmountError::UnknownDenomination(ref d) => write!(f, "unknown denomination: {}",d),
+            ParseAmountError::UnknownDenomination(ref d) => {
+                write!(f, "unknown denomination: {}", d)
+            }
         }
     }
 }
@@ -632,10 +634,14 @@ impl SignedAmount {
     ///
     /// Does not include the denomination.
     pub fn fmt_value_in(self, f: &mut dyn fmt::Write, denom: Denomination) -> fmt::Result {
-        let sats = self.as_sat().checked_abs().map(|a: i64| a as u64).unwrap_or_else(|| {
-            // We could also hard code this into `9223372036854775808`
-            u64::max_value() - self.as_sat() as u64 +1
-        });
+        let sats = self
+            .as_sat()
+            .checked_abs()
+            .map(|a: i64| a as u64)
+            .unwrap_or_else(|| {
+                // We could also hard code this into `9223372036854775808`
+                u64::max_value() - self.as_sat() as u64 + 1
+            });
         fmt_satoshi_in(sats, self.is_negative(), f, denom)
     }
 
@@ -684,7 +690,6 @@ impl SignedAmount {
     pub fn is_negative(self) -> bool {
         self.0.is_negative()
     }
-
 
     /// Get the absolute value of this [SignedAmount].
     /// Returns [None] if overflow occurred. (`self == min_value()`)
@@ -783,7 +788,8 @@ impl ops::Sub for SignedAmount {
     type Output = SignedAmount;
 
     fn sub(self, rhs: SignedAmount) -> Self::Output {
-        self.checked_sub(rhs).expect("SignedAmount subtraction error")
+        self.checked_sub(rhs)
+            .expect("SignedAmount subtraction error")
     }
 }
 
@@ -797,7 +803,8 @@ impl ops::Rem<i64> for SignedAmount {
     type Output = SignedAmount;
 
     fn rem(self, modulus: i64) -> Self {
-        self.checked_rem(modulus).expect("SignedAmount remainder error")
+        self.checked_rem(modulus)
+            .expect("SignedAmount remainder error")
     }
 }
 
@@ -811,7 +818,8 @@ impl ops::Mul<i64> for SignedAmount {
     type Output = SignedAmount;
 
     fn mul(self, rhs: i64) -> Self::Output {
-        self.checked_mul(rhs).expect("SignedAmount multiplication error")
+        self.checked_mul(rhs)
+            .expect("SignedAmount multiplication error")
     }
 }
 
@@ -843,7 +851,7 @@ impl FromStr for SignedAmount {
     }
 }
 
-#[cfg(feature = "serde")]
+// #[cfg(feature = "serde")]
 pub mod serde {
     // methods are implementation of a standardized serde-specific signature
     #![allow(missing_docs)]
@@ -864,8 +872,8 @@ pub mod serde {
     //! }
     //! ```
 
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use crate::util::amount::{Amount, Denomination, SignedAmount};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     /// This trait is used only to avoid code duplication and naming collisions
     /// of the different serde serialization crates.
@@ -912,8 +920,8 @@ pub mod serde {
         //! Serialize and deserialize [Amount] as real numbers denominated in satoshi.
         //! Use with `#[serde(with = "amount::serde::as_sat")]`.
 
-        use serde::{Deserializer, Serializer};
         use crate::util::amount::serde::SerdeAmount;
+        use serde::{Deserializer, Serializer};
 
         pub fn serialize<A: SerdeAmount, S: Serializer>(a: &A, s: S) -> Result<S::Ok, S::Error> {
             a.ser_sat(s)
@@ -927,8 +935,8 @@ pub mod serde {
             //! Serialize and deserialize [Optoin<Amount>] as real numbers denominated in satoshi.
             //! Use with `#[serde(default, with = "amount::serde::as_sat::opt")]`.
 
-            use serde::{Deserializer, Serializer};
             use crate::util::amount::serde::SerdeAmount;
+            use serde::{Deserializer, Serializer};
 
             pub fn serialize<A: SerdeAmount, S: Serializer>(
                 a: &Option<A>,
@@ -952,8 +960,8 @@ pub mod serde {
         //! Serialize and deserialize [Amount] as JSON numbers denominated in kmd.
         //! Use with `#[serde(with = "amount::serde::as_kmd")]`.
 
-        use serde::{Deserializer, Serializer};
         use crate::util::amount::serde::SerdeAmount;
+        use serde::{Deserializer, Serializer};
 
         pub fn serialize<A: SerdeAmount, S: Serializer>(a: &A, s: S) -> Result<S::Ok, S::Error> {
             a.ser_kmd(s)
@@ -967,8 +975,8 @@ pub mod serde {
             //! Serialize and deserialize [Option<Amount>] as JSON numbers denominated in kmd.
             //! Use with `#[serde(default, with = "amount::serde::as_kmd::opt")]`.
 
-            use serde::{Deserializer, Serializer};
             use crate::util::amount::serde::SerdeAmount;
+            use serde::{Deserializer, Serializer};
 
             pub fn serialize<A: SerdeAmount, S: Serializer>(
                 a: &Option<A>,
